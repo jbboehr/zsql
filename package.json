@@ -1,0 +1,28 @@
+{
+  "author": "John Boehr <jbboehr@gmail.com>",
+  "contributors": [
+    "Shaun Harding"
+  ],
+  "description": "SQL generator modeled after Zend_Db_Select",
+  "devDependencies": {
+    "mocha": "1.5.0",
+    "should": "1.2.0"
+  },
+  "directories": {
+    "test": "test"
+  },
+  "engines": {
+    "node": ">=0.8"
+  },
+  "homepage" : "https://github.com/jbboehr/zsql",
+  "main": "zsql.js",
+  "name": "zsql",
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/jbboehr/zsql.git"
+  },
+  "scripts": {
+    "test": "mocha"
+  },
+  "version": "0.1.0"
+}
