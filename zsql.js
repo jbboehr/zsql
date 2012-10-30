@@ -18,6 +18,33 @@ function qexpr(expr) {
   }
 }
 
+/**
+ * http://phpjs.org/functions/substr_count/
+ */
+function substr_count(haystack, needle, offset, length) {
+  var cnt = 0;
+
+  haystack += '';
+  needle += '';
+  if (isNaN(offset)) {
+    offset = 0;
+  }
+  if (isNaN(length)) {
+    length = 0;
+  }
+  offset--;
+
+  while ((offset = haystack.indexOf(needle, offset + 1)) != -1) {
+    if (length > 0 && (offset + needle.length) > length) {
+      return false;
+    }
+    cnt++;
+  }
+
+  return cnt;
+}
+
+
 
 /**
  * Expr
@@ -42,10 +69,10 @@ function Query() {}
 module.exports.Query = Query;
 
 Query.prototype.table = function(table, columns) {
-  if( typeof(table) == 'string' || table instanceof Expr ) {
-    this._table = String(table);
+  if( table instanceof Expr ) {
+    this._table = table;
   } else {
-    throw Error("Invalid table spec");
+    this._table = String(table);
   }
   if( columns ) {
     this.columns(columns);
@@ -88,7 +115,11 @@ Query.prototype._push = function(str) {
 }
 
 Query.prototype._pushTable = function() {
-  this._parts.push(quoteIdentifier(this._table));
+  if( this._table instanceof Expr ) {
+    this._parts.push(this._table);
+  } else {
+    this._parts.push(quoteIdentifier(this._table));
+  }
   return this;
 }
 
@@ -102,7 +133,28 @@ module.exports.ExtendedQuery = ExtendedQuery;
 ExtendedQuery.prototype = new Query;
 
 ExtendedQuery.prototype.where = function(where, val) {
-  this._where.push([where, val]);
+  if( arguments.length >= 2 || where instanceof Expr ) {
+    this._where.push([where, val]);
+  } else if( arguments.length >= 1 ) {
+    this._where.push([where]);
+  }
+  return this;
+}
+
+ExtendedQuery.prototype.whereIn = function(where, val) {
+  if( !(val instanceof Array) ) {
+    val = new Array(val);
+  }
+  if( val.length <= 0 ) {
+    this._where.push([new Expr('FALSE')]);
+  } else {
+    this._where.push([where, val, 'IN']);
+  }
+  return this;
+}
+
+ExtendedQuery.prototype.whereExpr = function(where) {
+  this._where.push([new Expr(String(where))]);
   return this;
 }
 
@@ -139,17 +191,38 @@ ExtendedQuery.prototype._pushWhere = function() {
   }
   this._parts.push('WHERE');
   this._where.forEach(function(w) {
-    if( w[0] instanceof Expr ) {
-      this._parts.push(String(w[0]));
-    } else if( w[1] instanceof Expr ) {
-      this._parts.push(quoteIdentifier(w[0]));
-      this._parts.push('=');
-      this._parts.push(w[1]);
+    var where = w[0];
+    var val = w[1];
+    if( where instanceof Expr ) {
+      this._parts.push(String(where));
+    } else if( w.length == 1 ) {
+      this._parts.push(quoteIdentifier(where));
+    } else if( w.length == 3 ) {
+      //if( w[2] == 'IN' ) {
+        this._parts.push(quoteIdentifier(where));
+        this._parts.push(w[2]);
+        var tmp = '';
+        for( var i = 0; i < w[1].length; i++ ) {
+          tmp += '?, ';
+        }
+        this._parts.push('(' + tmp.substring(0, tmp.length - 2) + ')');
+        w[1].forEach(function(v) {
+          this._params.push(v);
+        }.bind(this));
+      //}
     } else {
-      this._parts.push(quoteIdentifier(w[0]));
-      this._parts.push('=');
-      this._parts.push('?');
-      this._params.push(w[1]);
+      var cnt = substr_count(where, '?');
+      
+      // Push where
+      if( cnt <= 0 ) {
+        this._parts.push(quoteIdentifier(where));
+        this._parts.push('=');
+        this._parts.push('?');
+        this._params.push(val);
+      } else {
+        this._parts.push(where);
+        this._params.push(val);
+      }
     }
     this._parts.push('&&');
   }.bind(this));
@@ -218,6 +291,8 @@ Select.prototype.columns = function(columns) {
       columns instanceof Expr || 
       typeof(columns) == 'string') ) {
     this._columns = columns;
+  } else {
+    throw new Error('Invalid columns spec');
   }
   return this;
 }
