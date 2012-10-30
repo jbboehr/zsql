@@ -434,6 +434,11 @@ module.exports.insert = function(mysql) {
 
 Insert.prototype.into = Insert.prototype.table;
 
+Insert.prototype.value = function(key, value) {
+  this._values[key] = value;
+  return this;
+}
+
 Insert.prototype.values = function(values) {
   this._values = values;
   return this;
@@ -539,6 +544,7 @@ Update.prototype.value = function(key, value) {
   this._values[key] = value;
   return this;
 }
+Update.prototype.set = Update.prototype.value;
 
 Update.prototype._pushValues = function() {
   Object.keys(this._values).forEach(function(key) {
