@@ -68,6 +68,11 @@ Expr.prototype.toString = function() {
 function Query() {}
 module.exports.Query = Query;
 
+Query.prototype.mysql = function(mysql) {
+  this._mysql = mysql;
+  return this;
+}
+
 Query.prototype.table = function(table, columns) {
   if( table instanceof Expr ) {
     this._table = table;
@@ -442,11 +447,10 @@ Insert.prototype.toString = function() {
   Object.keys(this._values).forEach(function(key) {
     if( Object.prototype.hasOwnProperty.call(this._values, key) ) {
       var val = this._values[key];
+      keys.push(quoteIdentifier(key));
       if( val instanceof Expr ) {
-        keys.push(key);
         vals.push(val.toString());
       } else {
-        keys.push(key);
         vals.push('?');
         params.push(val);
       }

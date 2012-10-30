@@ -26,9 +26,23 @@ MockMysql.prototype.getAll = MockMysql.prototype.get_one;
 MockMysql.prototype.execute = MockMysql.prototype.get_one;
 
 
-suite('Select', function() {
+function testMockProxy(fn, sql, done) {
+  var mock = new MockMysql();
+  sql.mysql(mock);
+  sql[fn](function(err, result) {
+    assert.equal(mock.sql, sql.toString());
+    assert.deepEqual(mock.params, sql.params());
+    assert.equal('function', typeof(mock.callback));
+    assert.equal(null, err);
+    assert.equal(null, result);
+    done();
+  });
+}
 
-  suite('Table', function() {
+
+suite('Select', function suiteSelect() {
+
+  suite('Table', function suiteSelectTable() {
     
     test("simple", function(done) {
       var sql = zsql.select().table('tableName');
@@ -59,7 +73,7 @@ suite('Select', function() {
     
   });
 
-  suite('Columns', function() {
+  suite('Columns', function suiteSelectColumn() {
   
     test("string", function(done) {
       var str = zsql.select().table('tableName').columns('columnName').toString();
@@ -108,7 +122,7 @@ suite('Select', function() {
     
   });
 
-  suite('Distinct', function() {
+  suite('Distinct', function suiteSelectDistinct() {
   
     test("undefined", function(done) {
       var sql = zsql.select().table('tableName').distinct();
@@ -139,7 +153,7 @@ suite('Select', function() {
     
   });
 
-  suite('Where', function() {
+  suite('Where', function suiteSelectWhere() {
   
     test('simple integer', function(done) {
       var sql = zsql.select().table('tableName').where('columnName', 1);
@@ -239,7 +253,7 @@ suite('Select', function() {
     
   });
 
-  suite('Group', function() {
+  suite('Group', function suiteSelectGroup() {
     
     test('simple', function(done) {
       var sql = zsql.select().table('tableName').group('columnName');
@@ -252,7 +266,7 @@ suite('Select', function() {
     
   });
 
-  suite('Order', function() {
+  suite('Order', function suiteSelectOrder() {
     
     test('simple direction undefined', function(done) {
       var sql = zsql.select().table('tableName').order('columnName');
@@ -292,7 +306,7 @@ suite('Select', function() {
     
   });
 
-  suite('Limit', function() {
+  suite('Limit', function suiteSelectLimit() {
     
     test('simple', function(done) {
       var sql = zsql.select().table('tableName').limit(5);
@@ -315,7 +329,7 @@ suite('Select', function() {
     
   });
 
-  suite('Offset', function() {
+  suite('Offset', function suiteSelectOffset() {
     
     test('with limit', function(done) {
       var sql = zsql.select().table('tableName').offset(5, 10);
@@ -328,7 +342,7 @@ suite('Select', function() {
     
   });
 
-  suite('Hint', function() {
+  suite('Hint', function suiteSelectHint() {
     
     test('simple', function(done) {
       var sql = zsql.select().table('tableName').hint('indexName');
@@ -350,7 +364,7 @@ suite('Select', function() {
     
   });
 
-  suite('misc', function() {
+  suite('Misc', function SuiteSelectMisc() {
     
     test('all no params', function(done) {
       var sql = zsql.select().table('tableName');
@@ -375,60 +389,178 @@ suite('Select', function() {
     });
     
     test('get_one', function(done) {
-      var mock = new MockMysql();
-      zsql.select(mock).table('tableName').where('columnName', 1)
-        .get_one(function(err, result) {
-          assert.equal(mock.sql, 'SELECT * FROM `tableName` WHERE `columnName` = ?');
-          assert.deepEqual(mock.params, [1]);
-          assert.equal('function', typeof(mock.callback));
-          assert.equal(null, err);
-          assert.equal(null, result);
-          done();
-        });
+      var sql = zsql.select().table('tableName').where('columnName', 1);
+      testMockProxy('get_one', sql, done);
     });
     
     test('get_all', function(done) {
-      var mock = new MockMysql();
-      zsql.select(mock).table('tableName').where('columnName', 1)
-        .get_all(function(err, result) {
-          assert.equal(mock.sql, 'SELECT * FROM `tableName` WHERE `columnName` = ?');
-          assert.deepEqual(mock.params, [1]);
-          assert.equal('function', typeof(mock.callback));
-          assert.equal(null, err);
-          assert.equal(null, result);
-          done();
-        });
+      var sql = zsql.select().table('tableName').where('columnName', 1);
+      testMockProxy('get_all', sql, done);
     });
     
     test('execute', function(done) {
-      var mock = new MockMysql();
-      zsql.select(mock).table('tableName').where('columnName', 1)
-        .execute(function(err, result) {
-          assert.equal(mock.sql, 'SELECT * FROM `tableName` WHERE `columnName` = ?');
-          assert.deepEqual(mock.params, [1]);
-          assert.equal('function', typeof(mock.callback));
-          assert.equal(null, err);
-          assert.equal(null, result);
-          done();
-        });
+      var sql = zsql.select().table('tableName').where('columnName', 1);
+      testMockProxy('execute', sql, done);
     });
     
   });
   
 });
 
-suite('Insert', function() {
 
-  test("table", function(done) {
-    done();
+suite('Insert', function suiteInsert() {
+
+  suite("Table", function suiteInsertTable(done) {
+    
+    test("simple", function(done) {
+      var sql = zsql.insert().table('tableName').values({
+        columnName : 1
+      });
+      var str = sql.toString();
+      var params = sql.params();
+      assert.equal(str, "INSERT INTO `tableName` (`columnName`) VALUES (?)");
+      assert.deepEqual(params, [1]);
+      done();
+    });
+    
+    test("simple using into", function(done) {
+      var sql = zsql.insert().into('tableName').values({
+        columnName : 1
+      });
+      var str = sql.toString();
+      var params = sql.params();
+      assert.equal(str, "INSERT INTO `tableName` (`columnName`) VALUES (?)");
+      assert.deepEqual(params, [1]);
+      done();
+    });
+
+    test("with database", function(done) {
+      var sql = zsql.insert().table('dbName.tableName').values({
+        columnName : 1
+      });
+      var str = sql.toString();
+      var params = sql.params();
+      assert.equal(str, "INSERT INTO `dbName`.`tableName` (`columnName`) VALUES (?)");
+      assert.deepEqual(params, [1]);
+      done();
+    });
+    
+    test("expr", function(done) {
+      var sql = zsql.insert().table(zsql.expr('tableName')).values({
+        columnName : 1
+      });
+      var str = sql.toString();
+      var params = sql.params();
+      assert.equal(str, "INSERT INTO tableName (`columnName`) VALUES (?)");
+      assert.deepEqual(params, [1]);
+      done();
+    });
+    
+  });
+
+  suite("Values", function suiteInsertValues(done) {
+    
+    test("simple", function(done) {
+      var sql = zsql.insert().table('tableName').values({
+        columnName : 1
+      });
+      var str = sql.toString();
+      var params = sql.params();
+      assert.equal(str, "INSERT INTO `tableName` (`columnName`) VALUES (?)");
+      assert.deepEqual(params, [1]);
+      done();
+    });
+    
+    test("multi", function(done) {
+      var sql = zsql.insert().table('tableName').values({
+        columnName1 : 1,
+        columnName2 : 'value1',
+        columnName3 : 'value2'
+      });
+      var str = sql.toString();
+      var params = sql.params();
+      assert.equal(str, "INSERT INTO `tableName` (`columnName1`, `columnName2`, `columnName3`) VALUES (?, ?, ?)");
+      assert.deepEqual(params, [1, 'value1', 'value2']);
+      done();
+    });
+    
+    test("expr", function(done) {
+      var sql = zsql.insert().table('tableName').values({
+        columnName1 : 1,
+        columnName2 : zsql.expr('NOW()')
+      });
+      var str = sql.toString();
+      var params = sql.params();
+      assert.equal(str, "INSERT INTO `tableName` (`columnName1`, `columnName2`) VALUES (?, NOW())");
+      assert.deepEqual(params, [1]);
+      done();
+    });
+    
+  });
+
+  suite('Misc', function SuiteInsertMisc() {
+    
+    test('all', function(done) {
+      var sql = zsql.insert().table('tableName').values({
+        columnName : 1
+      });
+      var all = sql.all();
+      assert.deepEqual(all, ['INSERT INTO `tableName` (`columnName`) VALUES (?)', [1]]);
+      done();
+    });
+    
+    test('all with params and callback', function(done) {
+      var fn = function() {};
+      var sql = zsql.insert().table('tableName').values({
+        columnName : 1
+      });
+      var all = sql.all(fn);
+      assert.deepEqual(all, ['INSERT INTO `tableName` (`columnName`) VALUES (?)', [1], fn]);
+      done();
+    });
+    
+    test('execute', function(done) {
+      var sql = zsql.insert().table('tableName').values({
+        columnName : 1
+      });
+      testMockProxy('execute', sql, done);
+    });
+    
   });
   
 });
 
-suite('Delete', function() {
+suite('Delete', function suiteDelete() {
 
-  test("table", function(done) {
-    done();
+  suite('Table', function suiteDeleteTable() {
+    
+    test("simple", function(done) {
+      var sql = zsql.del().from('tableName');
+      var str = sql.toString();
+      var params = sql.params();
+      assert.equal(str, "DELETE FROM `tableName`");
+      assert.deepEqual(params, undefined);
+      done();
+    });
+
+    test("with database", function(done) {
+      var sql = zsql.del().from('dbName.tableName');
+      var str = sql.toString();
+      var params = sql.params();
+      assert.equal(str, "DELETE FROM `dbName`.`tableName`");
+      assert.deepEqual(params, undefined);
+      done();
+    });
+    
+    test("expr", function(done) {
+      var sql = zsql.del().table(zsql.expr('tableName'));
+      var str = sql.toString();
+      var params = sql.params();
+      assert.equal(str, "DELETE FROM tableName");
+      assert.deepEqual(params, undefined);
+      done();
+    });
+    
   });
   
 });
