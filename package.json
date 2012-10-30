@@ -15,6 +15,7 @@
     "node": ">=0.8"
   },
   "homepage" : "https://github.com/jbboehr/zsql",
+  "keywords" : ["sql", "generator", "mysql"],
   "main": "zsql.js",
   "name": "zsql",
   "repository": {
