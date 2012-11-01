@@ -1,8 +1,15 @@
 
 var assert = require('assert');
 var should = require('should');
-var zsql = require('../');
-
+var zsql = process.env.COVERAGE
+    ? require('../zsql-cov.js')
+    : require('../zsql.js');
+    
+var log = function(msg) {
+  if( !process.env.COVERAGE ) {
+    console.log(msg);
+  }
+}
 
 function MockMysql() {}
 MockMysql.prototype.get_one = function(sql, params, callback) {
@@ -637,7 +644,7 @@ suite('Delete', function suiteDelete() {
   suite('Aggregate', function SuiteDeleteAggregate() {
     
     test('Aggregate', function(done) {
-      console.log('Other methods should have been tested through ExtendedQuery and Select');
+      log('Other methods should have been tested through ExtendedQuery and Select');
       var sql = zsql.del().from('tableName')
         .where('columnName1', 3)
         .where('columnName2', 4)
@@ -782,7 +789,7 @@ suite('Update', function() {
   suite('Aggregate', function SuiteUpdateAggregate() {
     
     test('Aggregate', function(done) {
-      console.log('Other methods should have been tested through ExtendedQuery and Select');
+      log('Other methods should have been tested through ExtendedQuery and Select');
       var sql = zsql.update().table('tableName')
         .values({
           columnName4 : 1,

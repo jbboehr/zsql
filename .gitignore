@@ -15,3 +15,6 @@ node_modules
 npm-debug.log
 
 nbproject
+
+zsql-cov.js
+coverage.html
