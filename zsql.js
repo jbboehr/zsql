@@ -17,6 +17,7 @@ function qexpr(expr) {
     return quoteIdentifier(expr);
   }
 }
+module.exports.qexpr = qexpr;
 
 /**
  * http://phpjs.org/functions/substr_count/
@@ -32,6 +33,9 @@ function substr_count(haystack, needle, offset, length) {
   if (isNaN(length)) {
     length = 0;
   }
+  if( needle.length == 0 ) {
+    return false;
+  }
   offset--;
 
   while ((offset = haystack.indexOf(needle, offset + 1)) != -1) {
@@ -43,6 +47,7 @@ function substr_count(haystack, needle, offset, length) {
 
   return cnt;
 }
+module.exports.substr_count = substr_count;
 
 
 
@@ -138,7 +143,7 @@ module.exports.ExtendedQuery = ExtendedQuery;
 ExtendedQuery.prototype = new Query;
 
 ExtendedQuery.prototype.where = function(where, val) {
-  if( arguments.length >= 2 || where instanceof Expr ) {
+  if( arguments.length >= 2 ) {
     this._where.push([where, val]);
   } else if( arguments.length >= 1 ) {
     this._where.push([where]);
@@ -148,7 +153,7 @@ ExtendedQuery.prototype.where = function(where, val) {
 
 ExtendedQuery.prototype.whereIn = function(where, val) {
   if( !(val instanceof Array) ) {
-    val = new Array(val);
+    val = [val];
   }
   if( val.length <= 0 ) {
     this._where.push([new Expr('FALSE')]);
@@ -200,8 +205,6 @@ ExtendedQuery.prototype._pushWhere = function() {
     var val = w[1];
     if( where instanceof Expr ) {
       this._parts.push(String(where));
-    } else if( w.length == 1 ) {
-      this._parts.push(quoteIdentifier(where));
     } else if( w.length == 3 ) {
       //if( w[2] == 'IN' ) {
         this._parts.push(quoteIdentifier(where));
@@ -336,8 +339,6 @@ Select.prototype._pushColumns = function() {
     this._parts.push(quoteIdentifier(this._columns));
   } else if( this._columns instanceof Expr ) {
     this._parts.push(this._columns.toString());
-  } else {
-    throw Error('Invalid column spec');
   }
   return this;
 }

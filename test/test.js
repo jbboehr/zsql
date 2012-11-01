@@ -11,7 +11,10 @@ var log = function(msg) {
   }
 }
 
-function MockMysql() {}
+function MockMysql(err, results) {
+  this.err = err;
+  this.results = results;
+}
 MockMysql.prototype.get_one = function(sql, params, callback) {
   if( typeof(params) == 'function' ) {
     callback = params;
@@ -25,26 +28,58 @@ MockMysql.prototype.get_one = function(sql, params, callback) {
     assert.fail(params, 'undefined|[]', 'Must be undefined or an array', 'meh');
   }
   assert.equal('function', typeof(callback));
-  callback(null, null);
+  if( this.err ) {
+    callback(this.err);
+  } else {
+    callback(null, this.results || null);
+  }
 }
 MockMysql.prototype.getOne = MockMysql.prototype.get_one;
 MockMysql.prototype.get_all = MockMysql.prototype.get_one;
 MockMysql.prototype.getAll = MockMysql.prototype.get_one;
 MockMysql.prototype.execute = MockMysql.prototype.get_one;
+MockMysql.prototype.get_column = MockMysql.prototype.get_one;
+MockMysql.prototype.getColumn = MockMysql.prototype.get_one;
 
 
-function testMockProxy(fn, sql, done) {
-  var mock = new MockMysql();
+function testMockProxy(fn, sql, done, inErr, inResults) {
+  var mock = new MockMysql(inErr, inResults);
   sql.mysql(mock);
   sql[fn](function(err, result) {
     assert.equal(mock.sql, sql.toString());
     assert.deepEqual(mock.params, sql.params());
     assert.equal('function', typeof(mock.callback));
-    assert.equal(null, err);
+    assert.equal(inErr, err);
     assert.equal(null, result);
     done();
   });
 }
+
+
+suite('Utility', function suiteUtility() {
+  
+  test('substr_count()', function suiteUtilitySubstrCount(done) {
+    assert.equal(false, zsql.substr_count('', ''));
+    assert.equal(false, zsql.substr_count(' ?', '?', 0, 1));
+    assert.equal(0, zsql.substr_count('a', 'b'));
+    assert.equal(3, zsql.substr_count('???', '?'));
+    done();
+  });
+  
+  test('qexpr()', function suiteUtilityQexpr(done) {
+    assert('`test`', zsql.qexpr('test'));
+    assert('test', zsql.qexpr(zsql.expr('test')));
+    done();
+  });
+  
+  test('quoteIdentifier()', function(done) {
+    assert.equal('`name`', zsql.quoteIdentifier('name'));
+    assert.equal('`na``me`', zsql.quoteIdentifier('na`me'));
+    assert.equal('`na`.`me`', zsql.quoteIdentifier('na.me'));
+    done();
+  });
+
+});
 
 
 suite('Select', function suiteSelect() {
@@ -57,6 +92,16 @@ suite('Select', function suiteSelect() {
       var str = sql.toString();
       var params = sql.params();
       assert.equal(str, "SELECT * FROM `tableName`");
+      assert.deepEqual(params, undefined);
+      done();
+    });
+    
+    test(".table(String tableName, String columnName)", function(done) {
+      var sql = zsql.select().table('tableName', 'columnName');
+      assert.equal(true, sql instanceof zsql.Select, 'Not an instance of Select');
+      var str = sql.toString();
+      var params = sql.params();
+      assert.equal(str, "SELECT `columnName` FROM `tableName`");
       assert.deepEqual(params, undefined);
       done();
     });
@@ -210,15 +255,6 @@ suite('Select', function suiteSelect() {
       assert.deepEqual(params, undefined);
       done();
     });
-
-    test('.whereExpr(String expression)', function(done) {
-      var sql = zsql.select().table('tableName').whereExpr('LENGTH(columnName) > 0');
-      var str = sql.toString();
-      var params = sql.params();
-      assert.equal(str, "SELECT * FROM `tableName` WHERE LENGTH(columnName) > 0");
-      assert.deepEqual(params, undefined);
-      done();
-    });
     
     test('.where(...) x2', function(done) {
       var sql = zsql.select().table('tableName')
@@ -243,6 +279,23 @@ suite('Select', function suiteSelect() {
       assert.deepEqual(params, [3, 4, 'test']);
       done();
     });
+    
+  });
+
+  suite('.whereExpr()', function suiteSelectWhereExpr() {
+
+    test('.whereExpr(String expression)', function(done) {
+      var sql = zsql.select().table('tableName').whereExpr('LENGTH(columnName) > 0');
+      var str = sql.toString();
+      var params = sql.params();
+      assert.equal(str, "SELECT * FROM `tableName` WHERE LENGTH(columnName) > 0");
+      assert.deepEqual(params, undefined);
+      done();
+    });
+    
+  });
+
+  suite('.whereIn()', function suiteSelectWhereIn() {
     
     test('.whereIn(String columnName, Array values)', function(done) {
       var sql = zsql.select().table('tableName').whereIn('columnName', [1, 2, 3, 4]);
@@ -271,8 +324,17 @@ suite('Select', function suiteSelect() {
       done();
     });
     
+    test('.whereIn(String columnName, Integer value)', function(done) {
+      var sql = zsql.select().table('tableName').whereIn('columnName', 1);
+      var str = sql.toString();
+      var params = sql.params();
+      assert.equal(str, "SELECT * FROM `tableName` WHERE `columnName` IN (?)");
+      assert.deepEqual(params, [1]);
+      done();
+    });
+    
   });
-
+  
   suite('.group()', function suiteSelectGroup() {
     
     test('.group(String columnName)', function(done) {
@@ -419,21 +481,96 @@ suite('Select', function suiteSelect() {
     
   });
   
-  suite('Proxy', function suiteSelectProxy() {
+  suite('.toString()', function suiteSelectToString() {
+    
+    test('throws when no table', function(done) {
+      assert['throws'](function() {
+        zsql.select().toString();
+      });
+      done();
+    });
+    
+  });
+  
+  suite('.get_one()', function suiteSelectGetOne() {
     
     test('.get_one()', function(done) {
       var sql = zsql.select().table('tableName').where('columnName', 1);
       testMockProxy('get_one', sql, done);
     });
     
+    test('.get_one() fails without mysql', function(done) {
+      assert['throws'](function() {
+        var sql = zsql.select().table('tableName').where('columnName', 1);
+        sql.get_one(function(err, result) {
+          assert.ifError(err);
+        });
+      });
+      done();
+    });
+    
+  });
+  
+  suite('.get_all()', function suiteSelectGetAll() {
+    
     test('.get_all()', function(done) {
       var sql = zsql.select().table('tableName').where('columnName', 1);
       testMockProxy('get_all', sql, done);
     });
     
+    test('.get_all() fails without mysql', function(done) {
+      assert['throws'](function() {
+        var sql = zsql.select().table('tableName').where('columnName', 1);
+        sql.get_all(function(err, result) {
+          assert.ifError(err);
+        });
+      });
+      done();
+    });
+    
+  });
+  
+  suite('.execute()', function suiteSelectExecute() {
+    
     test('.execute()', function(done) {
       var sql = zsql.select().table('tableName').where('columnName', 1);
       testMockProxy('execute', sql, done);
+    });
+    
+    test('.execute() fails without mysql', function(done) {
+      assert['throws'](function() {
+        var sql = zsql.select().table('tableName').where('columnName', 1);
+        sql.execute(function(err, result) {
+          assert.ifError(err);
+        });
+      });
+      done();
+    });
+    
+  });
+  
+  suite('.get_column()', function suiteSelectGetColumn() {
+    
+    test('.get_column()', function(done) {
+      var sql = zsql.select().table('tableName').where('columnName', 1);
+      testMockProxy('get_column', sql, done, null, {
+        test : null
+      });
+    });
+    
+    test('.get_column() fails without mysql', function(done) {
+      assert['throws'](function() {
+        var sql = zsql.select().table('tableName').where('columnName', 1);
+        sql.get_column(function(err, result) {
+          assert.ifError(err);
+        });
+      });
+      done();
+    });
+    
+    test('.get_column() handles error', function(done) {
+      var sql = zsql.select().table('tableName').where('columnName', 1);
+      testMockProxy('get_column', sql, done, new Error('test error'));
     });
     
   });
@@ -575,10 +712,21 @@ suite('Insert', function suiteInsert() {
     });
     
   });
-
-  suite('Proxy', function SuiteInsertProxy() {
+  
+  suite('.toString()', function suiteInsertToString() {
     
-    test('execute', function(done) {
+    test('throws when no table', function(done) {
+      assert['throws'](function() {
+        zsql.insert().toString();
+      });
+      done();
+    });
+    
+  });
+
+  suite('.execute()', function SuiteInsertExecute() {
+    
+    test('.execute()', function(done) {
       var sql = zsql.insert().table('tableName').values({
         columnName : 1
       });
@@ -621,6 +769,17 @@ suite('Delete', function suiteDelete() {
     });
     
   });
+  
+  suite('.toString()', function suiteDeleteToString() {
+    
+    test('throws when no table', function(done) {
+      assert['throws'](function() {
+        zsql.del().toString();
+      });
+      done();
+    });
+    
+  });
 
   suite('.all()', function SuiteDeleteAll() {
     
@@ -641,6 +800,17 @@ suite('Delete', function suiteDelete() {
     
   });
 
+  suite('.execute()', function SuiteInsertProxy() {
+    
+    test('.execute()', function(done) {
+      var sql = zsql.insert().table('tableName').values({
+        columnName : 1
+      });
+      testMockProxy('execute', sql, done);
+    });
+    
+  });
+
   suite('Aggregate', function SuiteDeleteAggregate() {
     
     test('Aggregate', function(done) {
@@ -656,17 +826,6 @@ suite('Delete', function suiteDelete() {
       assert.equal(str, "DELETE FROM `tableName` WHERE `columnName1` = ? && `columnName2` = ? ORDER BY `columnName3` ASC LIMIT ?, ?");
       assert.deepEqual(params, [3, 4, 10, 5]);
       done();
-    });
-    
-  });
-
-  suite('Proxy', function SuiteInsertProxy() {
-    
-    test('.execute()', function(done) {
-      var sql = zsql.insert().table('tableName').values({
-        columnName : 1
-      });
-      testMockProxy('execute', sql, done);
     });
     
   });
@@ -735,6 +894,10 @@ suite('Update', function() {
       done();
     });
     
+  });
+
+  suite('.value()', function suiteUpdateSet() {
+    
     test(".value(String columnName, Integer value)", function(done) {
       var sql = zsql.update().table('tableName').value('columnName', 1);
       var str = sql.toString();
@@ -758,6 +921,24 @@ suite('Update', function() {
       var params = sql.params();
       assert.equal(str, "UPDATE `tableName` SET `columnName1` = ? , `columnName2` = ? , `columnName3` = UUID() WHERE columnName4 = ? LIMIT ?");
       assert.deepEqual(params, [4, 'value', '1337', 1]);
+      done();
+    });
+    
+  });
+  
+  suite('.toString()', function suiteUpdateToString() {
+    
+    test('throws when no table', function(done) {
+      assert['throws'](function() {
+        zsql.update().toString();
+      });
+      done();
+    });
+    
+    test('throws when no values', function(done) {
+      assert['throws'](function() {
+        zsql.update().table('tableName').toString();
+      });
       done();
     });
     
@@ -786,6 +967,17 @@ suite('Update', function() {
     
   });
 
+  suite('.execute()', function SuiteUpdateProxy() {
+    
+    test('.execute()', function(done) {
+      var sql = zsql.update().table('tableName').values({
+        columnName : 1
+      });
+      testMockProxy('execute', sql, done);
+    });
+    
+  });
+
   suite('Aggregate', function SuiteUpdateAggregate() {
     
     test('Aggregate', function(done) {
@@ -805,17 +997,6 @@ suite('Update', function() {
       assert.equal(str, "UPDATE `tableName` SET `columnName4` = ? , `columnName5` = NOW() WHERE `columnName1` = ? && `columnName2` = ? ORDER BY `columnName3` ASC LIMIT ?, ?");
       assert.deepEqual(params, [1, 3, 4, 10, 5]);
       done();
-    });
-    
-  });
-
-  suite('Proxy', function SuiteUpdateProxy() {
-    
-    test('execute', function(done) {
-      var sql = zsql.update().table('tableName').values({
-        columnName : 1
-      });
-      testMockProxy('execute', sql, done);
     });
     
   });
