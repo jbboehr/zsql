@@ -16,6 +16,10 @@
   },
   "homepage" : "https://github.com/jbboehr/zsql",
   "keywords" : ["sql", "generator", "mysql"],
+  "licenses": [{
+    "type": "MIT",
+    "url": "http://github.com/jbboehr/zsql/blob/master/LICENSE"
+  }],
   "main": "zsql.js",
   "name": "zsql",
   "repository": {
